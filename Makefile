@@ -1,15 +1,13 @@
-NAME :=		ndpi-afpacket-lib
+NAME :=		libndpi-afpacket
 
 SRCS :=		src/ndpi-afpacket-process.c
-
-ifeq ($(PREFIX),)
-    PREFIX := /usr/local
-endif
 
 CPPFLAGS +=	-I/home/yevhen/ndpi-lib/include
 
 # This needs to point to the nDPI include directory.
 CPPFLAGS += -I/home/yevhen/nDPI/src/include
+
+LDLIBS += -lndpi
 
 all:
 	$(CC) -fPIC $(CPPFLAGS) -o $(NAME).so -shared $(SRCS) $(LDLIBS)
@@ -17,6 +15,6 @@ all:
 clean:
 	rm -f *.so *~
 
-install: ndpi-afpacket-lib.so
-	install -d $(PREFIX)/lib/
-	install -m 644 npdi-afpacket.so $(PREFIX)/lib/
+install: libndpi-afpacket.so
+	install -d /usr/lib/
+	install -m 644 libndpi-afpacket.so /usr/lib/
