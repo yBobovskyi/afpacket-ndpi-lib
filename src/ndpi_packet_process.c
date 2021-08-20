@@ -13,6 +13,24 @@ static struct ndpi_id_struct* src_id, * dst_id;
 
 /*****************************************/
 
+#define PROTOCOL_NAME_BUFFER_LENGTH 20
+
+struct packet_info
+{
+    uint64_t timestamp;
+    uint32_t src_addr;
+    uint32_t dst_addr;
+    uint16_t src_port;
+    uint16_t dst_port;
+    uint16_t length;
+    ndpi_protocol protocol;
+    char protocol_name[PROTOCOL_NAME_BUFFER_LENGTH];
+    const char* prot_category_name;
+};
+
+
+/*****************************************/
+
 static void detection_module_init(void) {
     /* Initializing a detection module */
     ndpi_detection_mod = ndpi_init_detection_module(ndpi_no_prefs);
@@ -79,9 +97,9 @@ static ndpi_protocol detect_packet_protocol(const struct tpacket3_hdr* pkt)
 
 /*****************************************/
 
-void log_packet_protocol(ndpi_protocol proto)
+void log_packet(struct packet_info* pkt_info)
 {
-    fprintf(log_file, "Master : %u, Application : %u\n", proto.master_protocol, proto.app_protocol);
+    fprintf(log_file, "%u, %u, %u\n", proto.master_protocol, proto.app_protocol);
 }
 
 /*****************************************/
