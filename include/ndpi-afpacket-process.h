@@ -3,6 +3,8 @@
 
 #include <linux/if_packet.h>
 
-#include "ndpi_api.h"
+void packet_process_init(const char* log_file_path);
 
-ndpi_protocol process_afpacket(const struct tpacket3_hdr* pkt);
+void process_packet(const struct tpacket3_hdr* pkt);
+
+void packet_process_exit(void);
