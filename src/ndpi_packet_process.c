@@ -92,7 +92,7 @@ static ndpi_protocol detect_packet_protocol(const struct ndpi_iphdr* iph, uint64
 
 /*****************************************/
 
-void log_packet(struct packet_info* pkt_info)
+static void log_packet(struct packet_info* pkt_info)
 {
     char src_addr_buff[20], dst_addr_buff[20];
 
@@ -114,7 +114,7 @@ void log_packet(struct packet_info* pkt_info)
 
 /*****************************************/
 
-void get_packet_l3_info(const struct ndpi_iphdr* iph, struct packet_info* pkt_info)
+static void get_packet_l3_info(const struct ndpi_iphdr* iph, struct packet_info* pkt_info)
 {
     pkt_info->src_addr.s_addr = iph->saddr;
     pkt_info->dst_addr.s_addr = iph->daddr;
@@ -130,7 +130,7 @@ struct l4_header
     uint16_t dst;
 };
 
-void get_packet_l4_info(const struct l4_header* l4h, struct packet_info* pkt_info)
+static void get_packet_l4_info(const struct l4_header* l4h, struct packet_info* pkt_info)
 {
     pkt_info->src_port = ntohs(l4h->src);
     pkt_info->dst_port = ntohs(l4h->dst);
@@ -138,7 +138,7 @@ void get_packet_l4_info(const struct l4_header* l4h, struct packet_info* pkt_inf
 
 /*****************************************/
 
-void parse_packet_protocol_info(const ndpi_protocol* pkt_proto, struct packet_info *pkt_info)
+static void parse_packet_protocol_info(const ndpi_protocol* pkt_proto, struct packet_info *pkt_info)
 {
     ndpi_protocol2name(ndpi_detection_mod, *pkt_proto, &pkt_info->protocol_name[0],
         PROTOCOL_NAME_BUFFER_LENGTH);
