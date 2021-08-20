@@ -1,10 +1,13 @@
-#include "ndpi-afpacket-process.h"
+#include "ndpi_packet_process.h"
 
 #include "ndpi_api.h"
 
 #include <linux/if_ether.h>
+#include <arpa/inet.h>
 
 #include <stdio.h>
+
+/*****************************************/
 
 static struct ndpi_detection_module_struct* ndpi_detection_mod;
 static FILE* log_file;
@@ -18,12 +21,12 @@ static struct ndpi_id_struct* src_id, * dst_id;
 struct packet_info
 {
     uint64_t timestamp;
-    uint32_t src_addr;
-    uint32_t dst_addr;
+    struct in_addr src_addr;
+    struct in_addr dst_addr;
     uint16_t src_port;
     uint16_t dst_port;
     uint16_t length;
-    ndpi_protocol protocol;
+    uint8_t ip_proto;
     char protocol_name[PROTOCOL_NAME_BUFFER_LENGTH];
     const char* prot_category_name;
 };
@@ -67,28 +70,19 @@ void packet_process_init(const char* log_file_path)
 
 /*****************************************/
 
-static ndpi_protocol detect_packet_protocol(const struct tpacket3_hdr* pkt)
+static ndpi_protocol detect_packet_protocol(const struct ndpi_iphdr* iph, uint64_t time_ms)
 {
-    /* Reaching an L3 pointer */
-    const uint8_t* packet = (const uint8_t*)pkt + pkt->tp_net;
-
-    /* IPv4 header */
-    struct ndpi_iphdr* iph = (struct ndpi_iphdr*)packet;
-
     /* Setting state machines to 0 */
     memset(ndpi_flow, 0, SIZEOF_FLOW_STRUCT);
     memset(src_id, 0, SIZEOF_ID_STRUCT);
     memset(dst_id, 0, SIZEOF_ID_STRUCT);
 
-    /* Getting 64bit timestamp in ms */
-    uint64_t time_ms = (uint64_t)pkt->tp_sec * 1000 + pkt->tp_nsec / 1000000;
-
     /* Detecting AF_PACKET's protocol */
     return ndpi_detection_process_packet(
         ndpi_detection_mod,
         ndpi_flow,
-        packet,
-        iph->tot_len,
+        (unsigned char*)iph,
+        ntohs(iph->tot_len),
         time_ms,
         src_id,
         dst_id
@@ -99,16 +93,83 @@ static ndpi_protocol detect_packet_protocol(const struct tpacket3_hdr* pkt)
 
 void log_packet(struct packet_info* pkt_info)
 {
-    fprintf(log_file, "%u, %u, %u\n", proto.master_protocol, proto.app_protocol);
+    fprintf(log_file, "%20lu, %20s, %20s, %10u, %10u, %10u, %10u, %25s, %25s\n",
+        pkt_info->timestamp,
+        inet_ntoa(pkt_info->src_addr),
+        inet_ntoa(pkt_info->dst_addr),
+        pkt_info->src_port,
+        pkt_info->dst_port,
+        pkt_info->length,
+        pkt_info->ip_proto,
+        pkt_info->protocol_name,
+        pkt_info->prot_category_name
+    );
+}
+
+/*****************************************/
+
+void get_packet_l3_info(const struct ndpi_iphdr* iph, struct packet_info* pkt_info)
+{
+    pkt_info->src_addr.s_addr = iph->saddr;
+    pkt_info->dst_addr.s_addr = iph->daddr;
+    pkt_info->length = ntohs(iph->tot_len);
+    pkt_info->ip_proto = iph->protocol;
+}
+
+/*****************************************/
+
+struct l4_header
+{
+    uint16_t src;
+    uint16_t dst;
+};
+
+void get_packet_l4_info(const struct l4_header* l4h, struct packet_info* pkt_info)
+{
+    pkt_info->src_port = ntohs(l4h->src);
+    pkt_info->dst_port = ntohs(l4h->dst);
+}
+
+/*****************************************/
+
+void parse_packet_protocol_info(const ndpi_protocol* pkt_proto, struct packet_info *pkt_info)
+{
+    ndpi_protocol2name(ndpi_detection_mod, *pkt_proto, &pkt_info->protocol_name[0],
+        PROTOCOL_NAME_BUFFER_LENGTH);
+
+    pkt_info->prot_category_name = ndpi_category_get_name(ndpi_detection_mod,
+        pkt_proto->category);
 }
 
 /*****************************************/
 
 void process_packet(const struct tpacket3_hdr* pkt)
 {
-    ndpi_protocol packet_proto = detect_packet_protocol(pkt);
+    /* IPv4 header */
+    struct ndpi_iphdr* iph = (struct ndpi_iphdr*)((const uint8_t*)pkt + pkt->tp_net);
 
-    log_packet_protocol(packet_proto);
+    struct packet_info pkt_info;
+
+    /* Getting 64bit ms timestamp from tpacket3_hdr */
+    pkt_info.timestamp = (uint64_t)pkt->tp_sec * 1000 + pkt->tp_nsec / 1000000;
+
+    /* Getting L3 info */
+    get_packet_l3_info(iph, &pkt_info);
+
+    /* L4 header */
+    struct l4_header* l4h = (struct l4_header*)((uint32_t*)iph + iph->ihl);
+
+    /* Getting L4 info */
+    get_packet_l4_info(l4h, &pkt_info);
+
+    /* Detecting packet protocol */
+    ndpi_protocol pkt_proto = detect_packet_protocol(iph, pkt_info.timestamp);
+
+    /* Parsing protocol info into packet_info struct */
+    parse_packet_protocol_info(&pkt_proto, &pkt_info);
+
+    /* Logging packet */
+    log_packet(&pkt_info);
 }
 
 /*****************************************/

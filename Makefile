@@ -1,6 +1,6 @@
-NAME :=		libndpi-afpacket
+NAME :=		libndpi-packet
 
-SRCS :=		src/ndpi-afpacket-process.c
+SRCS :=		src/ndpi_packet_process.c
 
 CPPFLAGS +=	-I/home/yevhen/ndpi-lib/include
 
@@ -15,6 +15,6 @@ all:
 clean:
 	rm -f *.so *~
 
-install: libndpi-afpacket.so
+install: libndpi-packet.so
 	install -d /usr/lib/
-	install -m 644 libndpi-afpacket.so /usr/lib/
+	install -m 644 libndpi-packet.so /usr/lib/
