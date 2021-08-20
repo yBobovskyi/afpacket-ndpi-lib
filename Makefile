@@ -2,7 +2,7 @@ NAME :=		libndpi-packet
 
 SRCS :=		src/ndpi_packet_process.c
 
-CPPFLAGS +=	-I/home/yevhen/ndpi-lib/include
+CPPFLAGS +=	-I$(CURDIR)/include
 
 # This needs to point to the nDPI include directory.
 CPPFLAGS += -I/home/yevhen/nDPI/src/include
