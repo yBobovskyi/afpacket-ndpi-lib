@@ -79,7 +79,7 @@ static ndpi_protocol detect_packet_protocol(const struct ndpi_iphdr* iph, uint64
     memset(dst_id, 0, SIZEOF_ID_STRUCT);
 
     /* Detecting AF_PACKET's protocol */
-    return ndpi_detection_process_packet(
+    ndpi_protocol result = ndpi_detection_process_packet(
         ndpi_detection_mod,
         ndpi_flow,
         (unsigned char*)iph,
@@ -88,6 +88,14 @@ static ndpi_protocol detect_packet_protocol(const struct ndpi_iphdr* iph, uint64
         src_id,
         dst_id
     );
+
+    uint8_t protocol_was_guessed;
+
+    if (result.app_protocol == NDPI_PROTOCOL_UNKNOWN)
+        result = ndpi_detection_giveup(ndpi_detection_mod, ndpi_flow,
+            1, &protocol_was_guessed);
+
+    return result;
 }
 
 /*****************************************/
