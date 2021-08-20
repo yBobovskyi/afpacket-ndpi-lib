@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 
 #include <stdio.h>
+#include <string.h>
 
 /*****************************************/
 
@@ -93,10 +94,15 @@ static ndpi_protocol detect_packet_protocol(const struct ndpi_iphdr* iph, uint64
 
 void log_packet(struct packet_info* pkt_info)
 {
+    char src_addr_buff[20], dst_addr_buff[20];
+
+    strcpy(&src_addr_buff[0], inet_ntoa(pkt_info->src_addr));
+    strcpy(&dst_addr_buff[0], inet_ntoa(pkt_info->dst_addr));
+
     fprintf(log_file, "%20lu, %20s, %20s, %10u, %10u, %10u, %10u, %25s, %25s\n",
         pkt_info->timestamp,
-        inet_ntoa(pkt_info->src_addr),
-        inet_ntoa(pkt_info->dst_addr),
+        &src_addr_buff[0],
+        &dst_addr_buff[0],
         pkt_info->src_port,
         pkt_info->dst_port,
         pkt_info->length,
