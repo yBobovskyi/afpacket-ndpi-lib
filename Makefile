@@ -1,6 +1,9 @@
-NAME :=		libndpi-packet
+NAME :=	libndpi-packet
 
-SRCS :=		src/ndpi_packet_process.c
+SRCS :=	src/lndpi_packet_flow.c \
+		src/lndpi_packet_logger.c \
+		src/lndpi_packet_buffers.c \
+		src/lndpi_packet.c 
 
 CPPFLAGS +=	-I$(CURDIR)/include
 
