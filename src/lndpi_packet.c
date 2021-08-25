@@ -151,6 +151,9 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     struct ndpi_iphdr* iph = (struct ndpi_iphdr*)((uint8_t*)pkt + pkt->tp_net);
 
+    if (iph->version == 6)
+        return LNDPI_IPV6_NOT_SUPPORTED;
+
     struct in_addr src_addr, dst_addr;
     uint16_t src_port, dst_port;
 
