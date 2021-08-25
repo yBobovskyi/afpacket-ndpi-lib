@@ -2,10 +2,6 @@
 #include "lndpi_packet_buffers.h"
 #include "lndpi_packet_logger.h"
 
-#define IPPROTO_ICMP    0x01
-#define IPPROTO_IGMP    0x02
-
-
 static struct ndpi_detection_module_struct* s_ndpi_struct;
 static struct lndpi_flow_buffer* s_flow_buffer;
 static struct lndpi_packet_buffer* s_packet_buffer;
@@ -111,8 +107,8 @@ struct l4_header_addr
 
 static uint8_t lndpi_packet_has_l4header(struct ndpi_iphdr* iph)
 {
-    return (iph->protocol != IPPROTO_ICMP
-        && iph->protocol != IPPROTO_IGMP);
+    return (iph->protocol == IPPROTO_TCP
+        || iph->protocol == IPPROTO_UDP);
 }
 
 static enum lndpi_error lndpi_process_buffers(void)
