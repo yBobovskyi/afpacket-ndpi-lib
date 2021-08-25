@@ -2,8 +2,6 @@
 #include "lndpi_packet_buffers.h"
 #include "lndpi_packet_logger.h"
 
-#include <sys/time.h>
-
 #define IPPROTO_ICMP    0x01
 #define IPPROTO_IGMP    0x02
 
@@ -11,7 +9,7 @@
 #define LNDPI_MAX_FLOWS 0x1000
 #define LNDPI_MAX_PACKETS_TO_PROCESS 80
 #define LNDPI_PACKET_BUFFER_SIZE 0x100000
-#define LNDPI_PACKET_TIMEOUT_MS 5000
+#define LNDPI_FLOW_TIMEOUT_MS 5000
 
 static struct ndpi_detection_module_struct* ndpi_struct;
 static struct lndpi_flow_buffer* flow_buffer;
@@ -43,16 +41,39 @@ void lndpi_packet_lib_init(const char* log_file_path)
     packet_buffer = lndpi_packet_buffer_init(LNDPI_PACKET_BUFFER_SIZE);
 }
 
+static void lndpi_packet_buffer_log(void)
+{
+    struct lndpi_packet_struct* iter;
+
+    for (iter = packet_buffer->head; iter != packet_buffer->tail;
+        iter = lndpi_packet_buffer_next(packet_buffer, iter))
+    {
+        if (iter->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
+        {
+            iter->lndpi_flow->protocol = ndpi_detection_giveup(
+                ndpi_struct,
+                iter->lndpi_flow->ndpi_flow,
+                1,
+                &iter->lndpi_flow->protocol_was_guessed
+            );
+        }
+
+        lndpi_log_packet(ndpi_struct, iter);
+    }
+}
+
 void lndpi_packet_lib_exit(void)
 {
+    lndpi_packet_buffer_log();
+
     /* Destroying the detection module */
     ndpi_exit_detection_module(ndpi_struct);
-
-    lndpi_logger_exit();
 
     lndpi_flow_buffer_destroy(flow_buffer);
 
     lndpi_packet_buffer_destroy(packet_buffer);
+
+    lndpi_logger_exit();
 }
 
 struct l4_header_addr
@@ -69,44 +90,31 @@ static uint8_t lndpi_packet_has_l4header(struct ndpi_iphdr* iph)
 
 static void lndpi_process_buffers(void)
 {
-    struct lndpi_packet_struct* packet_iter;
+    struct lndpi_packet_struct* iter;
 
-    for (packet_iter = packet_buffer->head; packet_iter != packet_buffer->tail;
-        packet_iter = lndpi_packet_buffer_next(packet_buffer, packet_iter))
+    for (iter = packet_buffer->head; iter != packet_buffer->tail;
+        iter = lndpi_packet_buffer_next(packet_buffer, iter))
     {
-        if (packet_iter->lndpi_flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN
-            && !ndpi_extra_dissection_possible(ndpi_struct, packet_iter->lndpi_flow->ndpi_flow))
+        if (iter->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
         {
-            lndpi_log_packet(ndpi_struct, packet_iter);
+            if (!lndpi_packet_flow_check_timeout(iter->lndpi_flow, LNDPI_FLOW_TIMEOUT_MS)
+                && iter->lndpi_flow->processed_packets_num <= LNDPI_MAX_PACKETS_TO_PROCESS)
+                break;
 
-            lndpi_packet_buffer_advance(packet_buffer);
+            iter->lndpi_flow->protocol = ndpi_detection_giveup(
+                ndpi_struct,
+                iter->lndpi_flow->ndpi_flow,
+                1,
+                &iter->lndpi_flow->protocol_was_guessed
+            );
         } else
         {
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-
-            uint64_t packet_time = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000
-                - packet_iter->lndpi_flow->last_packet_ms;
-
-            if (packet_iter->lndpi_flow->processed_packets_num == LNDPI_MAX_PACKETS_TO_PROCESS
-                || packet_time > LNDPI_PACKET_TIMEOUT_MS)
-            {
-                packet_iter->lndpi_flow->protocol = ndpi_detection_giveup(
-                    ndpi_struct,
-                    packet_iter->lndpi_flow->ndpi_flow,
-                    1,
-                    &packet_iter->lndpi_flow->protocol_was_guessed
-                );
-
-                lndpi_log_packet(ndpi_struct, packet_iter);
-
-                lndpi_packet_buffer_advance(packet_buffer);
-            } else
-                break;
+            lndpi_log_packet(ndpi_struct, iter);
+            lndpi_packet_buffer_advance(packet_buffer);
         }
     }
 
-    lndpi_flow_buffer_cleanup(flow_buffer);
+    lndpi_flow_buffer_cleanup(flow_buffer, LNDPI_FLOW_TIMEOUT_MS);
 }
 
 void lndpi_process_packet(const struct tpacket3_hdr* pkt)

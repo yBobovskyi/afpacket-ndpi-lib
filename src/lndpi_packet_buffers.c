@@ -87,14 +87,26 @@ void lndpi_flow_buffer_insert(struct lndpi_flow_buffer* buffer, struct lndpi_pac
     ++buffer->current_flow_number;
 }
 
-void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer)
+static void lndpi_flow_buffer_shrink(struct lndpi_flow_buffer* buffer)
+{
+    struct lndpi_flow_buffer_element* iter = buffer->end - 1;
+
+    while (!iter->alive)
+    {
+        --iter;
+        --buffer->end;
+    }
+}
+
+void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer, uint64_t timeout_ms)
 {
     struct lndpi_flow_buffer_element* iter;
 
     for (iter = buffer->begin; iter != buffer->end; ++iter)
     {
         if (iter->alive && iter->flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN
-            && iter->flow->buffered_packets_num == 0)
+            && iter->flow->buffered_packets_num == 0
+            && lndpi_packet_flow_check_timeout(iter->flow, timeout_ms))
         {
             lndpi_packet_flow_destroy(iter->flow);
             iter->alive = 0;
@@ -103,12 +115,7 @@ void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer)
         }
     }
 
-    iter = buffer->end - 1;
-    while (!iter->alive)
-    {
-        --iter;
-        --buffer->end;
-    }
+    lndpi_flow_buffer_shrink(buffer);
 }
 
 /* */

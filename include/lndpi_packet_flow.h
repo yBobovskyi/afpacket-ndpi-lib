@@ -45,6 +45,8 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
 
 void lndpi_packet_flow_destroy(struct lndpi_packet_flow* pkt_flow);
 
+uint8_t lndpi_packet_flow_check_timeout(struct lndpi_packet_flow* flow, uint64_t timeout_ms);
+
 int8_t lndpi_packet_flow_compare_with(
     struct lndpi_packet_flow* pkt_flow,
     struct in_addr src_addr,

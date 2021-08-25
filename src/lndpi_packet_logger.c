@@ -37,7 +37,7 @@ void lndpi_log_packet(
 
     strcpy(&category_str[0], ndpi_category_get_name(ndpi_struct, packet->lndpi_flow->protocol.category));
 
-    fprintf(log_file, "| %10u | %20lu | %20s:%-7u | %20s:%-7u | %10u | %10u | %20s | %12s | %8s | %10u |\n",
+    printf("| %10u | %20lu | %20s:%-7u | %20s:%-7u | %10u | %10u | %20s | %15s | %8s | %10u |\n",
         packet->lndpi_flow->id,
         packet->time_ms,
         &src_addr[0],

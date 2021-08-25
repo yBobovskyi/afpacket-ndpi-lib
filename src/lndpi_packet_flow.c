@@ -1,5 +1,7 @@
 #include "lndpi_packet_flow.h"
 
+#include <sys/time.h>
+
 static uint32_t id_counter = 0;
 
 struct lndpi_packet_flow* lndpi_packet_flow_init(
@@ -52,6 +54,16 @@ int8_t lndpi_packet_flow_compare_with(
         return -1;
 
     return 0;
+}
+
+uint8_t lndpi_packet_flow_check_timeout(struct lndpi_packet_flow* flow, uint64_t timeout_ms)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+
+    uint64_t packet_time = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000 - flow->last_packet_ms;
+
+    return packet_time > timeout_ms;
 }
 
 void lndpi_packet_flow_destroy(struct lndpi_packet_flow* pkt_flow)

@@ -34,7 +34,7 @@ struct lndpi_packet_flow* lndpi_flow_buffer_find(
 
 void lndpi_flow_buffer_insert(struct lndpi_flow_buffer* buffer, struct lndpi_packet_flow* flow);
 
-void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer);
+void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer, uint64_t timeout_ms);
 
 /* */
 
