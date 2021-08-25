@@ -11,16 +11,36 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
     uint16_t dst_port,
     uint8_t ip_protocol
 ) {
-    struct lndpi_packet_flow* res = ndpi_malloc(sizeof(struct lndpi_packet_flow));
+    struct lndpi_packet_flow* res;
+    if ((res = (struct lndpi_packet_flow*)ndpi_malloc(sizeof(struct lndpi_packet_flow))) == NULL)
+        return NULL;
     memset(res, 0, sizeof(struct lndpi_packet_flow));
 
     res->id = id_counter++;
 
-    res->ndpi_flow = (struct ndpi_flow_struct*)ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
+    if ((res->ndpi_flow = (struct ndpi_flow_struct*)ndpi_flow_malloc(SIZEOF_FLOW_STRUCT))
+            == NULL)
+    {
+        ndpi_free(res);
+
+        return NULL;
+    }
     memset(res->ndpi_flow, 0, SIZEOF_FLOW_STRUCT);
 
-    res->src_id_struct = (struct ndpi_id_struct*)ndpi_malloc(SIZEOF_ID_STRUCT);
-    res->dst_id_struct = (struct ndpi_id_struct*)ndpi_malloc(SIZEOF_ID_STRUCT);
+    if ((res->src_id_struct = (struct ndpi_id_struct*)ndpi_malloc(SIZEOF_ID_STRUCT))
+            == NULL)
+    {
+        lndpi_packet_flow_destroy(res);
+
+        return NULL;
+    }
+    if ((res->dst_id_struct = (struct ndpi_id_struct*)ndpi_malloc(SIZEOF_ID_STRUCT))
+            == NULL)
+    {
+        lndpi_packet_flow_destroy(res);
+
+        return NULL;
+    }
     memset(res->src_id_struct, 0, SIZEOF_ID_STRUCT);
     memset(res->dst_id_struct, 0, SIZEOF_ID_STRUCT);
 
@@ -32,6 +52,8 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
     res->dst_addr = *dst_addr;
     res->src_port = src_port;
     res->dst_port = dst_port;
+
+    return res;
 }
 
 int8_t lndpi_packet_flow_compare_with(
@@ -68,10 +90,14 @@ uint8_t lndpi_packet_flow_check_timeout(struct lndpi_packet_flow* flow, uint64_t
 
 void lndpi_packet_flow_destroy(struct lndpi_packet_flow* pkt_flow)
 {
-    ndpi_flow_free(pkt_flow->ndpi_flow);
+    if (pkt_flow != NULL)
+    {
+        ndpi_flow_free(pkt_flow->ndpi_flow);
 
-    ndpi_free(pkt_flow->src_id_struct);
-    ndpi_free(pkt_flow->dst_id_struct);
+        ndpi_free(pkt_flow->src_id_struct);
 
-    ndpi_free(pkt_flow);
+        ndpi_free(pkt_flow->dst_id_struct);
+
+        ndpi_free(pkt_flow);
+    }
 }

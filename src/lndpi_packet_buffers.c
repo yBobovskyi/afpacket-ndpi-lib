@@ -4,11 +4,18 @@
 
 struct lndpi_flow_buffer* lndpi_flow_buffer_init(uint32_t max_flow_number)
 {
-    struct lndpi_flow_buffer* res =
-        (struct lndpi_flow_buffer*)ndpi_malloc(sizeof(struct lndpi_flow_buffer));
+    struct lndpi_flow_buffer* res;
+    if ((res = (struct lndpi_flow_buffer*)ndpi_malloc(sizeof(struct lndpi_flow_buffer)))
+            == NULL)
+        return NULL;
 
-    res->begin = (struct lndpi_flow_buffer_element*)ndpi_malloc(
-            sizeof(struct lndpi_flow_buffer_element) * max_flow_number);
+    if ((res->begin = (struct lndpi_flow_buffer_element*)ndpi_malloc(
+            sizeof(struct lndpi_flow_buffer_element) * max_flow_number)) == NULL)
+    {
+        ndpi_free(res);
+
+        return NULL;
+    }
 
     res->end = res->begin;
     res->current_flow_number = 0;
@@ -19,13 +26,21 @@ struct lndpi_flow_buffer* lndpi_flow_buffer_init(uint32_t max_flow_number)
 
 void lndpi_flow_buffer_destroy(struct lndpi_flow_buffer* flow_buffer)
 {
-    struct lndpi_flow_buffer_element* iter;
+    if (flow_buffer != NULL)
+    {
+        if (flow_buffer->begin != NULL)
+        {
+            struct lndpi_flow_buffer_element* iter;
 
-    for (iter = flow_buffer->begin; iter != flow_buffer->end; ++iter)
-        if (iter->alive)
-            lndpi_packet_flow_destroy(iter->flow);
+            for (iter = flow_buffer->begin; iter != flow_buffer->end; ++iter)
+                if (iter->alive)
+                    lndpi_packet_flow_destroy(iter->flow);
 
-    ndpi_free(flow_buffer);
+            ndpi_free(flow_buffer->begin);
+        }
+
+        ndpi_free(flow_buffer);
+    }
 }
 
 struct lndpi_packet_flow* lndpi_flow_buffer_find(
@@ -74,17 +89,24 @@ static struct lndpi_flow_buffer_element* lndpi_flow_buffer_find_place(struct lnd
     return NULL;
 }
 
-void lndpi_flow_buffer_insert(struct lndpi_flow_buffer* buffer, struct lndpi_packet_flow* flow)
-{
+enum lndpi_error lndpi_flow_buffer_insert(
+    struct lndpi_flow_buffer* buffer,
+    struct lndpi_packet_flow* flow
+) {
     struct lndpi_flow_buffer_element* place = lndpi_flow_buffer_find_place(buffer);
 
     if (place != NULL)
     {
         place->flow = flow;
         place->alive = 1;
+    } else
+    {
+        return LNDPI_FLOW_BUFFER_OVERFLOW;
     }
 
     ++buffer->current_flow_number;
+
+    return LNDPI_OK;
 }
 
 static void lndpi_flow_buffer_shrink(struct lndpi_flow_buffer* buffer)
@@ -122,15 +144,23 @@ void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer, uint64_t timeou
 
 struct lndpi_packet_buffer* lndpi_packet_buffer_init(uint32_t max_packet_number)
 {
-    struct lndpi_packet_buffer* res =
-        (struct lndpi_packet_buffer*)ndpi_malloc(sizeof(struct lndpi_packet_buffer));
+    struct lndpi_packet_buffer* res;
+    if ((res = (struct lndpi_packet_buffer*)ndpi_malloc(sizeof(struct lndpi_packet_buffer)))
+            == NULL)
+        return NULL;
 
-    res->begin = (struct lndpi_packet_struct*)ndpi_malloc(
-        sizeof(struct lndpi_packet_struct) * max_packet_number);
+    if ((res->begin = (struct lndpi_packet_struct*)ndpi_malloc(
+            sizeof(struct lndpi_packet_struct) * max_packet_number)) == NULL)
+    {
+        ndpi_free(res);
+
+        return NULL;
+    }
 
     res->head = res->begin;
     res->tail = res->begin;
 
+    res->current_packet_number = 0;
     res->max_packet_number = max_packet_number;
 
     return res;
@@ -138,8 +168,12 @@ struct lndpi_packet_buffer* lndpi_packet_buffer_init(uint32_t max_packet_number)
 
 void lndpi_packet_buffer_destroy(struct lndpi_packet_buffer* buffer)
 {
-    ndpi_free(buffer->begin);
-    ndpi_free(buffer);
+    if (buffer != NULL)
+    {
+        ndpi_free(buffer->begin);
+
+        ndpi_free(buffer);
+    }
 }
 
 struct lndpi_packet_struct* lndpi_packet_buffer_next(
@@ -154,16 +188,21 @@ struct lndpi_packet_struct* lndpi_packet_buffer_next(
     return buffer->begin;
 }
 
-void lndpi_packet_buffer_put(
+enum lndpi_error lndpi_packet_buffer_put(
     struct lndpi_packet_buffer* buffer,
     struct lndpi_packet_struct* packet
-)
-{
+) {
+    if (buffer->current_packet_number == buffer->max_packet_number)
+        return LNDPI_PACKET_BUFFER_OVERFLOW;
+
     memcpy(buffer->tail, packet, sizeof(struct lndpi_packet_struct));
 
     buffer->tail = lndpi_packet_buffer_next(buffer, buffer->tail);
 
     ++packet->lndpi_flow->buffered_packets_num;
+    ++buffer->current_packet_number;
+
+    return LNDPI_OK;
 }
 
 const struct lndpi_packet_struct* lndpi_packet_buffer_get(struct lndpi_packet_buffer* buffer)
@@ -180,5 +219,6 @@ void lndpi_packet_buffer_advance(struct lndpi_packet_buffer* buffer)
     {
         --buffer->head->lndpi_flow->buffered_packets_num;
         buffer->head = lndpi_packet_buffer_next(buffer, buffer->head);
+        --buffer->current_packet_number;
     }
 }

@@ -6,72 +6,99 @@
 #define IPPROTO_IGMP    0x02
 
 
-#define LNDPI_MAX_FLOWS 0x1000
-#define LNDPI_MAX_PACKETS_TO_PROCESS 80
-#define LNDPI_PACKET_BUFFER_SIZE 0x100000
-#define LNDPI_FLOW_TIMEOUT_MS 5000
-
-static struct ndpi_detection_module_struct* ndpi_struct;
-static struct lndpi_flow_buffer* flow_buffer;
-static struct lndpi_packet_buffer* packet_buffer;
+static struct ndpi_detection_module_struct* s_ndpi_struct;
+static struct lndpi_flow_buffer* s_flow_buffer;
+static struct lndpi_packet_buffer* s_packet_buffer;
+static uint32_t s_max_flow_number;
+static uint32_t s_max_packets_to_process;
+static uint32_t s_packet_buffer_size;
+static uint64_t s_flow_timeout_ms;
 
 /* */
 
-static void lndpi_detection_module_init(void)
+static enum lndpi_error lndpi_detection_module_init(void)
 {
     /* Initializing a detection module */
-    ndpi_struct = ndpi_init_detection_module(ndpi_no_prefs);
+    if ((s_ndpi_struct = ndpi_init_detection_module(ndpi_no_prefs)) == NULL)
+        return LNDPI_NDPI_MODULE_INIT_ERROR;
     /* Enabling all protocols */
     NDPI_PROTOCOL_BITMASK all;
     NDPI_BITMASK_SET_ALL(all);
-    ndpi_set_protocol_detection_bitmask2(ndpi_struct, &all);
-    ndpi_finalize_initialization(ndpi_struct);
+    ndpi_set_protocol_detection_bitmask2(s_ndpi_struct, &all);
+    ndpi_finalize_initialization(s_ndpi_struct);
+
+    return LNDPI_OK;
 }
 
 /* */
 
-void lndpi_packet_lib_init(const char* log_file_path)
-{
-    lndpi_detection_module_init();
+enum lndpi_error lndpi_packet_lib_init(
+    const char* log_file_path,
+    uint32_t max_flow_number,
+    uint32_t max_packets_to_process,
+    uint32_t packet_buffer_size,
+    uint64_t flow_timeout_ms
+) {
+    s_max_flow_number = max_flow_number;
+    s_max_packets_to_process = max_packets_to_process;
+    s_packet_buffer_size = packet_buffer_size;
+    s_flow_timeout_ms = flow_timeout_ms;
 
-    lndpi_logger_init(log_file_path);
+    enum lndpi_error error;
 
-    flow_buffer = lndpi_flow_buffer_init(LNDPI_MAX_FLOWS);
+    if ((error = lndpi_detection_module_init()) != LNDPI_OK)
+        return error;
 
-    packet_buffer = lndpi_packet_buffer_init(LNDPI_PACKET_BUFFER_SIZE);
+    if ((error = lndpi_logger_init(log_file_path)) != LNDPI_OK)
+        return error;
+
+    if ((s_flow_buffer = lndpi_flow_buffer_init(s_max_flow_number)) == NULL)
+        return LNDPI_OUT_OF_MEMORY;
+
+    if ((s_packet_buffer = lndpi_packet_buffer_init(s_packet_buffer_size)) == NULL)
+        return LNDPI_OUT_OF_MEMORY;
+
+    return LNDPI_OK;
 }
 
-static void lndpi_packet_buffer_log(void)
+static enum lndpi_error lndpi_packet_buffer_log(void)
 {
     struct lndpi_packet_struct* iter;
 
-    for (iter = packet_buffer->head; iter != packet_buffer->tail;
-        iter = lndpi_packet_buffer_next(packet_buffer, iter))
+    for (iter = s_packet_buffer->head; iter != s_packet_buffer->tail;
+        iter = lndpi_packet_buffer_next(s_packet_buffer, iter))
     {
         if (iter->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
         {
             iter->lndpi_flow->protocol = ndpi_detection_giveup(
-                ndpi_struct,
+                s_ndpi_struct,
                 iter->lndpi_flow->ndpi_flow,
                 1,
                 &iter->lndpi_flow->protocol_was_guessed
             );
         }
 
-        lndpi_log_packet(ndpi_struct, iter);
+        enum lndpi_error error;
+        if ((error = lndpi_log_packet(s_ndpi_struct, iter)) != LNDPI_OK)
+            return error;
     }
+
+    return LNDPI_OK;
+}
+
+enum lndpi_error lndpi_packet_lib_finalize(void)
+{
+    return lndpi_packet_buffer_log();
 }
 
 void lndpi_packet_lib_exit(void)
 {
-    lndpi_packet_buffer_log();
-
     /* Destroying the detection module */
-    ndpi_exit_detection_module(ndpi_struct);
+    ndpi_exit_detection_module(s_ndpi_struct);
 
-    lndpi_flow_buffer_destroy(flow_buffer);
+    lndpi_flow_buffer_destroy(s_flow_buffer);
 
-    lndpi_packet_buffer_destroy(packet_buffer);
+    lndpi_packet_buffer_destroy(s_packet_buffer);
 
     lndpi_logger_exit();
 }
@@ -88,37 +115,44 @@ static uint8_t lndpi_packet_has_l4header(struct ndpi_iphdr* iph)
         && iph->protocol != IPPROTO_IGMP);
 }
 
-static void lndpi_process_buffers(void)
+static enum lndpi_error lndpi_process_buffers(void)
 {
+    enum lndpi_error error;
+
     struct lndpi_packet_struct* iter;
 
-    for (iter = packet_buffer->head; iter != packet_buffer->tail;
-        iter = lndpi_packet_buffer_next(packet_buffer, iter))
+    for (iter = s_packet_buffer->head; iter != s_packet_buffer->tail;
+        iter = lndpi_packet_buffer_next(s_packet_buffer, iter))
     {
         if (iter->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
         {
-            if (!lndpi_packet_flow_check_timeout(iter->lndpi_flow, LNDPI_FLOW_TIMEOUT_MS)
-                && iter->lndpi_flow->processed_packets_num <= LNDPI_MAX_PACKETS_TO_PROCESS)
+            if (!lndpi_packet_flow_check_timeout(iter->lndpi_flow, s_flow_timeout_ms)
+                && iter->lndpi_flow->processed_packets_num <= s_max_packets_to_process)
                 break;
 
             iter->lndpi_flow->protocol = ndpi_detection_giveup(
-                ndpi_struct,
+                s_ndpi_struct,
                 iter->lndpi_flow->ndpi_flow,
                 1,
                 &iter->lndpi_flow->protocol_was_guessed
             );
         } else
         {
-            lndpi_log_packet(ndpi_struct, iter);
-            lndpi_packet_buffer_advance(packet_buffer);
+            if ((error = lndpi_log_packet(s_ndpi_struct, iter)) != LNDPI_OK)
+                return error;
+            lndpi_packet_buffer_advance(s_packet_buffer);
         }
     }
 
-    lndpi_flow_buffer_cleanup(flow_buffer, LNDPI_FLOW_TIMEOUT_MS);
+    lndpi_flow_buffer_cleanup(s_flow_buffer, s_flow_timeout_ms);
+
+    return LNDPI_OK;
 }
 
-void lndpi_process_packet(const struct tpacket3_hdr* pkt)
+enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
 {
+    enum lndpi_error error;
+
     struct ndpi_iphdr* iph = (struct ndpi_iphdr*)((uint8_t*)pkt + pkt->tp_net);
 
     struct in_addr src_addr, dst_addr;
@@ -141,7 +175,7 @@ void lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     uint8_t direction;
     struct lndpi_packet_flow* pkt_flow = lndpi_flow_buffer_find(
-        flow_buffer,
+        s_flow_buffer,
         src_addr,
         dst_addr,
         src_port,
@@ -151,15 +185,17 @@ void lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     if (pkt_flow == NULL)
     {
-        pkt_flow = lndpi_packet_flow_init(
+        if ((pkt_flow = lndpi_packet_flow_init(
             &src_addr,
             &dst_addr,
             src_port,
             dst_port,
             iph->protocol
-        );
+        )) == NULL)
+            return LNDPI_OUT_OF_MEMORY;
 
-        lndpi_flow_buffer_insert(flow_buffer, pkt_flow);
+        if ((error = lndpi_flow_buffer_insert(s_flow_buffer, pkt_flow)) != LNDPI_OK)
+            return error;
 
         direction = 1;
     }
@@ -170,10 +206,11 @@ void lndpi_process_packet(const struct tpacket3_hdr* pkt)
     packet.length = ntohs(iph->tot_len);
     packet.direction = direction;
 
-    lndpi_packet_buffer_put(packet_buffer, &packet);
+    if ((error = lndpi_packet_buffer_put(s_packet_buffer, &packet)) != LNDPI_OK)
+        return error;
 
     if (pkt_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN
-        || ndpi_extra_dissection_possible(ndpi_struct, pkt_flow->ndpi_flow))
+        || ndpi_extra_dissection_possible(s_ndpi_struct, pkt_flow->ndpi_flow))
     {
         struct ndpi_id_struct* src, * dst;
 
@@ -187,9 +224,8 @@ void lndpi_process_packet(const struct tpacket3_hdr* pkt)
             dst = pkt_flow->src_id_struct;
         }
 
-
         pkt_flow->protocol = ndpi_detection_process_packet(
-            ndpi_struct,
+            s_ndpi_struct,
             pkt_flow->ndpi_flow,
             (uint8_t*)iph,
             packet.length,
@@ -203,5 +239,7 @@ void lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     pkt_flow->last_packet_ms = packet.time_ms;
 
-    lndpi_process_buffers();
+    error = lndpi_process_buffers();
+
+    return error;
 }
