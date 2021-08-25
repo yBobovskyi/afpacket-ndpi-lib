@@ -15,6 +15,7 @@ struct lndpi_flow_buffer
 {
     struct lndpi_flow_buffer_element* begin;
     struct lndpi_flow_buffer_element* end;
+    uint32_t current_flow_number;
     uint32_t max_flow_number;
 };
 

@@ -9,7 +9,9 @@ struct lndpi_flow_buffer* lndpi_flow_buffer_init(uint32_t max_flow_number)
 
     res->begin = (struct lndpi_flow_buffer_element*)ndpi_malloc(
             sizeof(struct lndpi_flow_buffer_element) * max_flow_number);
+
     res->end = res->begin;
+    res->current_flow_number = 0;
     res->max_flow_number = max_flow_number;
 
     return res;
@@ -21,7 +23,7 @@ void lndpi_flow_buffer_destroy(struct lndpi_flow_buffer* flow_buffer)
 
     for (iter = flow_buffer->begin; iter != flow_buffer->end; ++iter)
         if (iter->alive)
-            ndpi_free(iter->flow);
+            lndpi_packet_flow_destroy(iter->flow);
 
     ndpi_free(flow_buffer);
 }
@@ -81,6 +83,8 @@ void lndpi_flow_buffer_insert(struct lndpi_flow_buffer* buffer, struct lndpi_pac
         place->flow = flow;
         place->alive = 1;
     }
+
+    ++buffer->current_flow_number;
 }
 
 void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer)
@@ -89,11 +93,21 @@ void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer)
 
     for (iter = buffer->begin; iter != buffer->end; ++iter)
     {
-        if (iter->alive && iter->flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN)
+        if (iter->alive && iter->flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN
+            && iter->flow->buffered_packets_num == 0)
         {
             lndpi_packet_flow_destroy(iter->flow);
             iter->alive = 0;
+
+            --buffer->current_flow_number;
         }
+    }
+
+    iter = buffer->end - 1;
+    while (!iter->alive)
+    {
+        --iter;
+        --buffer->end;
     }
 }
 
@@ -138,11 +152,11 @@ void lndpi_packet_buffer_put(
     struct lndpi_packet_struct* packet
 )
 {
-    buffer->tail->time_ms = packet->time_ms;
-    buffer->tail->ndpi_flow = packet->ndpi_flow;
-    buffer->tail->direction = packet->direction;
+    memcpy(buffer->tail, packet, sizeof(struct lndpi_packet_struct));
 
     buffer->tail = lndpi_packet_buffer_next(buffer, buffer->tail);
+
+    ++packet->lndpi_flow->buffered_packets_num;
 }
 
 const struct lndpi_packet_struct* lndpi_packet_buffer_get(struct lndpi_packet_buffer* buffer)
@@ -156,5 +170,8 @@ const struct lndpi_packet_struct* lndpi_packet_buffer_get(struct lndpi_packet_bu
 void lndpi_packet_buffer_advance(struct lndpi_packet_buffer* buffer)
 {
     if (buffer->head != buffer->tail)
+    {
+        --buffer->head->lndpi_flow->buffered_packets_num;
         buffer->head = lndpi_packet_buffer_next(buffer, buffer->head);
+    }
 }

@@ -1,5 +1,7 @@
 #include "lndpi_packet_flow.h"
 
+static uint32_t id_counter = 0;
+
 struct lndpi_packet_flow* lndpi_packet_flow_init(
     struct in_addr* src_addr,
     struct in_addr* dst_addr,
@@ -9,6 +11,8 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
 ) {
     struct lndpi_packet_flow* res = ndpi_malloc(sizeof(struct lndpi_packet_flow));
     memset(res, 0, sizeof(struct lndpi_packet_flow));
+
+    res->id = id_counter++;
 
     res->ndpi_flow = (struct ndpi_flow_struct*)ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
     memset(res->ndpi_flow, 0, SIZEOF_FLOW_STRUCT);
@@ -26,11 +30,6 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
     res->dst_addr = *dst_addr;
     res->src_port = src_port;
     res->dst_port = dst_port;
-
-
-    res->processed_packets_num = 0;
-
-    res->protocol_was_guessed = 0;
 }
 
 int8_t lndpi_packet_flow_compare_with(

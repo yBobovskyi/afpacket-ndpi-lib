@@ -15,39 +15,41 @@ void lndpi_log_packet(
     struct lndpi_packet_struct* packet
 ) {
     char src_addr[16], dst_addr[16];
-    uint8_t src_port, dst_port;
+    uint16_t src_port, dst_port;
 
     if (packet->direction == 1)
     {
-        strcpy(&src_addr[0], inet_ntoa(packet->ndpi_flow->src_addr));
-        strcpy(&dst_addr[0], inet_ntoa(packet->ndpi_flow->dst_addr));
-        src_port = packet->ndpi_flow->src_port;
-        dst_port = packet->ndpi_flow->dst_port;
+        strcpy(&src_addr[0], inet_ntoa(packet->lndpi_flow->src_addr));
+        strcpy(&dst_addr[0], inet_ntoa(packet->lndpi_flow->dst_addr));
+        src_port = packet->lndpi_flow->src_port;
+        dst_port = packet->lndpi_flow->dst_port;
     } else
     {
-        strcpy(&src_addr[0], inet_ntoa(packet->ndpi_flow->dst_addr));
-        strcpy(&dst_addr[0], inet_ntoa(packet->ndpi_flow->src_addr));
-        src_port = packet->ndpi_flow->dst_port;
-        dst_port = packet->ndpi_flow->src_port;
+        strcpy(&src_addr[0], inet_ntoa(packet->lndpi_flow->dst_addr));
+        strcpy(&dst_addr[0], inet_ntoa(packet->lndpi_flow->src_addr));
+        src_port = packet->lndpi_flow->dst_port;
+        dst_port = packet->lndpi_flow->src_port;
     }
 
     char protocol_str[25], category_str[16];
 
-    ndpi_protocol2name(ndpi_struct, packet->ndpi_flow->protocol, &protocol_str[0], 25);
+    ndpi_protocol2name(ndpi_struct, packet->lndpi_flow->protocol, &protocol_str[0], 25);
 
-    strcpy(&category_str[0], ndpi_category_get_name(ndpi_struct, packet->ndpi_flow->protocol.category));
+    strcpy(&category_str[0], ndpi_category_get_name(ndpi_struct, packet->lndpi_flow->protocol.category));
 
-    fprintf(log_file, "%20lu, %20s:%-10u, %20s:%-10u, %10u, %10u, %25s, %16s, %8s\n",
+    fprintf(log_file, "| %10u | %20lu | %20s:%-7u | %20s:%-7u | %10u | %10u | %20s | %12s | %8s | %10u |\n",
+        packet->lndpi_flow->id,
         packet->time_ms,
         &src_addr[0],
         src_port,
         &dst_addr[0],
         dst_port,
         packet->length,
-        packet->ndpi_flow->ip_protocol,
+        packet->lndpi_flow->ip_protocol,
         &protocol_str[0],
         &category_str[0],
-        packet->ndpi_flow->protocol_was_guessed ? "Guessed" : ""
+        packet->lndpi_flow->protocol_was_guessed ? "Guessed" : "",
+        packet->lndpi_flow->processed_packets_num
     );
 }
 

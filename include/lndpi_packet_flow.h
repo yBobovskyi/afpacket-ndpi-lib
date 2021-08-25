@@ -10,6 +10,8 @@
 
 struct lndpi_packet_flow
 {
+    uint32_t id;
+    uint64_t last_packet_ms;
     struct ndpi_flow_struct* ndpi_flow;
     struct in_addr src_addr;
     struct in_addr dst_addr;
@@ -18,15 +20,16 @@ struct lndpi_packet_flow
     struct ndpi_id_struct* src_id_struct;
     struct ndpi_id_struct* dst_id_struct;
     ndpi_protocol protocol;
+    uint32_t processed_packets_num;
+    uint32_t buffered_packets_num;
     uint8_t ip_protocol;
-    uint8_t processed_packets_num;
     uint8_t protocol_was_guessed;
 };
 
 struct lndpi_packet_struct
 {
     uint64_t time_ms;
-    struct lndpi_packet_flow* ndpi_flow;
+    struct lndpi_packet_flow* lndpi_flow;
     uint16_t length;
     int8_t direction;
 };
