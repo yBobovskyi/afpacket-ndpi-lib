@@ -2,6 +2,7 @@
 #include "lndpi_packet_buffers.h"
 #include "lndpi_packet_logger.h"
 
+/* Global variables for all necessary resources */
 static struct ndpi_detection_module_struct* s_ndpi_struct;
 static struct lndpi_linked_list s_flow_buffer;
 static struct lndpi_linked_list s_packet_buffer;
@@ -41,14 +42,14 @@ static enum lndpi_error (*s_finalize_callback)(
 );
 static void* s_finalize_callback_parameter;
 
-/* */
-
+/**
+ *  Initialization of an nDPI detection module
+ */
 static enum lndpi_error lndpi_detection_module_init(void)
 {
-    /* Initializing a detection module */
     if ((s_ndpi_struct = ndpi_init_detection_module(ndpi_no_prefs)) == NULL)
         return LNDPI_NDPI_MODULE_INIT_ERROR;
-    /* Enabling all protocols */
+
     NDPI_PROTOCOL_BITMASK all;
     NDPI_BITMASK_SET_ALL(all);
     ndpi_set_protocol_detection_bitmask2(s_ndpi_struct, &all);
@@ -57,6 +58,9 @@ static enum lndpi_error lndpi_detection_module_init(void)
     return LNDPI_OK;
 }
 
+/**
+ *  Helper function for initializing flow buffer
+ */
 static void lndpi_flow_buffer_init(uint32_t max_flow_number)
 {
     s_flow_buffer.head = NULL;
@@ -65,6 +69,9 @@ static void lndpi_flow_buffer_init(uint32_t max_flow_number)
     s_flow_buffer.max_elements_number = max_flow_number;
 }
 
+/**
+ *  Helper function for initializing packet buffer
+ */
 static void lndpi_packet_buffer_init(uint32_t packet_buffer_size)
 {
     s_packet_buffer.head = NULL;
@@ -73,6 +80,9 @@ static void lndpi_packet_buffer_init(uint32_t packet_buffer_size)
     s_packet_buffer.max_elements_number = packet_buffer_size;
 }
 
+/**
+ *  Set packet callback function definition
+ */
 void lndpi_set_packet_callback_function(
     enum lndpi_error (*packet_callback)(
         struct ndpi_detection_module_struct*,
@@ -88,6 +98,9 @@ void lndpi_set_packet_callback_function(
     s_packet_callback_parameter = parameter;
 }
 
+/**
+ *  Set buffers callback function definition
+ */
 void lndpi_set_buffers_callback_function(
     enum lndpi_error (*buffers_callback)(
         struct ndpi_detection_module_struct* ndpi_struct,
@@ -105,6 +118,9 @@ void lndpi_set_buffers_callback_function(
     s_buffers_callback_parameter = parameter;
 }
 
+/**
+ *  Set finalize callback function definition
+ */
 void lndpi_set_finalize_callback_function(
     enum lndpi_error (*finalize_callback)(
         struct ndpi_detection_module_struct* ndpi_struct,
@@ -122,6 +138,15 @@ void lndpi_set_finalize_callback_function(
     s_finalize_callback_parameter = parameter;
 }
 
+/*
+ *  Default buffers callback function
+ *  Send to packet callback function all packets from the begining of the packet buffer which:
+ *      - have final protocol decision
+ *      - have unknown protocol but:
+ *          - have reached maximum number of processed packets
+ *          - are in timed out flow
+ *  Call flow buffer cleanup funtion
+ */
 static enum lndpi_error lndpi_process_buffers(
     struct ndpi_detection_module_struct* ndpi_struct,
     struct lndpi_linked_list* flow_buffer,
@@ -171,6 +196,10 @@ static enum lndpi_error lndpi_process_buffers(
     return LNDPI_OK;
 }
 
+/*
+ *  Default finalize callback function
+ *  Send all packets from buffer to packet callback function
+ */
 static enum lndpi_error lndpi_packet_buffer_log(
     struct ndpi_detection_module_struct* ndpi_struct,
     struct lndpi_linked_list* flow_buffer,
@@ -209,8 +238,9 @@ static enum lndpi_error lndpi_packet_buffer_log(
     return LNDPI_OK;
 }
 
-/* */
-
+/*
+ *  Library initialization function definition
+ */
 enum lndpi_error lndpi_packet_lib_init(
     uint32_t max_flow_number,
     uint32_t max_packets_to_process,
@@ -243,6 +273,9 @@ enum lndpi_error lndpi_packet_lib_init(
     return LNDPI_OK;
 }
 
+/**
+ *  Default log file function definition
+ */
 enum lndpi_error lndpi_init_log_file(char* log_file_path)
 {
     enum lndpi_error error;
@@ -254,6 +287,9 @@ enum lndpi_error lndpi_init_log_file(char* log_file_path)
     return LNDPI_OK;
 }
 
+/**
+ *  Finalize function definition
+ */
 enum lndpi_error lndpi_packet_lib_finalize(void)
 {
     return s_finalize_callback(
@@ -267,12 +303,14 @@ enum lndpi_error lndpi_packet_lib_finalize(void)
     );
 }
 
+/**
+ *  Library exit funtion definition
+ */
 void lndpi_packet_lib_exit(void)
 {
     if (s_packet_callback == lndpi_log_packet)
         lndpi_logger_exit();
 
-    /* Destroying the detection module */
     ndpi_exit_detection_module(s_ndpi_struct);
 
     lndpi_flow_buffer_clear(&s_flow_buffer);
@@ -280,27 +318,40 @@ void lndpi_packet_lib_exit(void)
     lndpi_packet_buffer_clear(&s_packet_buffer);
 }
 
+/**
+ *  Structure to extract source and destination ports from L4 header
+ */
 struct l4_header_addr
 {
     uint16_t src_port;
     uint16_t dst_port;
 };
 
+/**
+ *  Check if packet has L4 header
+ *  Currently only check if L4 protocol is TCP or UPD
+ */
 static uint8_t lndpi_packet_has_l4header(struct ndpi_iphdr* iph)
 {
     return (iph->protocol == IPPROTO_TCP
         || iph->protocol == IPPROTO_UDP);
 }
 
+/**
+ *  Main packet processing funtion definition
+ */
 enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
 {
     enum lndpi_error error;
 
+    /* Get L3 header from tpacket3_hdr */
     struct ndpi_iphdr* iph = (struct ndpi_iphdr*)((uint8_t*)pkt + pkt->tp_net);
 
+    /* IPv6 is not supported yet */
     if (iph->version == 6)
         return LNDPI_IPV6_NOT_SUPPORTED;
 
+    /* Get address information from packet */
     struct in_addr src_addr, dst_addr;
     uint16_t src_port, dst_port;
 
@@ -319,6 +370,7 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
         dst_port = 0;
     }
 
+    /* Check for corresponding flow in the buffer */
     uint8_t direction;
     struct lndpi_packet_flow* pkt_flow = lndpi_flow_buffer_find(
         &s_flow_buffer,
@@ -329,6 +381,7 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
         &direction
     );
 
+    /* If no, create a new one */
     if (pkt_flow == NULL)
     {
         if ((pkt_flow = lndpi_packet_flow_init(
@@ -346,6 +399,7 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
         direction = 1;
     }
 
+    /* Create a new packet structure */
     struct lndpi_packet_struct* packet;
 
     if ((packet = (struct lndpi_packet_struct*)ndpi_malloc(sizeof(struct lndpi_packet_struct))) == NULL)
@@ -356,9 +410,11 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
     packet->length = ntohs(iph->tot_len);
     packet->direction = direction;
 
+    /* Put it in a buffer */
     if ((error = lndpi_packet_buffer_put(&s_packet_buffer, packet)) != LNDPI_OK)
         return error;
 
+    /* Invoke detection process if the protocol is unknown or some extra dissection possible */
     if (pkt_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN
         || ndpi_extra_dissection_possible(s_ndpi_struct, pkt_flow->ndpi_flow))
     {
@@ -389,6 +445,7 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     pkt_flow->last_packet_ms = packet->time_ms;
 
+    /* Call the buffers callback funtion */
     error = s_buffers_callback(
         s_ndpi_struct,
         &s_flow_buffer,
