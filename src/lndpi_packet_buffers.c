@@ -2,223 +2,193 @@
 
 /* */
 
-struct lndpi_flow_buffer* lndpi_flow_buffer_init(uint32_t max_flow_number)
+void lndpi_flow_buffer_clear(struct lndpi_linked_list* flow_buffer)
 {
-    struct lndpi_flow_buffer* res;
-    if ((res = (struct lndpi_flow_buffer*)ndpi_malloc(sizeof(struct lndpi_flow_buffer)))
-            == NULL)
-        return NULL;
+    struct lndpi_linked_list_element* iter, * iter_next = NULL;
 
-    if ((res->begin = (struct lndpi_flow_buffer_element*)ndpi_malloc(
-            sizeof(struct lndpi_flow_buffer_element) * max_flow_number)) == NULL)
+    for (iter = flow_buffer->head; iter != NULL; iter = iter_next)
     {
-        ndpi_free(res);
+        iter_next = iter->next;
 
-        return NULL;
+        lndpi_packet_flow_destroy(iter->data.flow);
+
+        ndpi_free(iter);
     }
 
-    res->end = res->begin;
-    res->current_flow_number = 0;
-    res->max_flow_number = max_flow_number;
-
-    return res;
-}
-
-void lndpi_flow_buffer_destroy(struct lndpi_flow_buffer* flow_buffer)
-{
-    if (flow_buffer != NULL)
-    {
-        if (flow_buffer->begin != NULL)
-        {
-            struct lndpi_flow_buffer_element* iter;
-
-            for (iter = flow_buffer->begin; iter != flow_buffer->end; ++iter)
-                if (iter->alive)
-                    lndpi_packet_flow_destroy(iter->flow);
-
-            ndpi_free(flow_buffer->begin);
-        }
-
-        ndpi_free(flow_buffer);
-    }
+    flow_buffer->head = flow_buffer->tail = NULL;
 }
 
 struct lndpi_packet_flow* lndpi_flow_buffer_find(
-    struct lndpi_flow_buffer* flow_buffer,
+    struct lndpi_linked_list* flow_buffer,
     struct in_addr src_addr,
     struct in_addr dst_addr,
     uint16_t src_port,
     uint16_t dst_port,
     int8_t* direction
 ) {
-    struct lndpi_flow_buffer_element* iter;
+    struct lndpi_linked_list_element* iter;
 
-    for (iter = flow_buffer->begin; iter != flow_buffer->end; ++iter)
-        if (iter->alive)
-        {
-            int8_t cmp_res = lndpi_packet_flow_compare_with(
-                iter->flow,
-                src_addr,
-                dst_addr,
-                src_port,
-                dst_port
-            );
-
-            if (cmp_res)
-            {
-                *direction = cmp_res;
-                return iter->flow;
-            }
-        }
-
-    *direction = 0;
-    return NULL;
-}
-
-static struct lndpi_flow_buffer_element* lndpi_flow_buffer_find_place(struct lndpi_flow_buffer* buffer)
-{
-    struct lndpi_flow_buffer_element* iter;
-
-    for (iter = buffer->begin; iter != buffer->end; ++iter)
-        if (!iter->alive)
-            return iter;
-
-    if (buffer->begin + buffer->max_flow_number > buffer->end)
-        return buffer->end++;
-
-    return NULL;
-}
-
-enum lndpi_error lndpi_flow_buffer_insert(
-    struct lndpi_flow_buffer* buffer,
-    struct lndpi_packet_flow* flow
-) {
-    struct lndpi_flow_buffer_element* place = lndpi_flow_buffer_find_place(buffer);
-
-    if (place != NULL)
+    for (iter = flow_buffer->head; iter != NULL; iter = iter->next)
     {
-        place->flow = flow;
-        place->alive = 1;
-    } else
-    {
-        return LNDPI_FLOW_BUFFER_OVERFLOW;
+        *direction = lndpi_packet_flow_compare_with(
+            iter->data.flow,
+            src_addr,
+            dst_addr,
+            src_port,
+            dst_port
+        );
+
+        if (*direction)
+            return iter->data.flow;
     }
 
-    ++buffer->current_flow_number;
+    return NULL;
+}
+
+static struct lndpi_linked_list_element* lndpi_linked_list_new_element(void)
+{
+    return (struct lndpi_linked_list_element*)ndpi_malloc(sizeof(struct lndpi_linked_list_element));
+}
+
+static uint8_t lndpi_linked_list_put_new_element(struct lndpi_linked_list* list) {
+    if (list->elements_number == list->max_elements_number)
+        return 1;
+
+    if (list->tail == NULL)
+    {
+        if ((list->head = lndpi_linked_list_new_element()) == NULL)
+            return 2;
+
+        list->head->next = NULL;
+
+        list->tail = list->head;
+    } else
+    {
+        if ((list->tail->next = lndpi_linked_list_new_element()) == NULL)
+            return 2;
+        list->tail = list->tail->next;
+
+        list->tail->next = NULL;
+    }
+
+    ++list->elements_number;
+
+    return 0;
+}
+
+enum lndpi_error lndpi_flow_buffer_put(
+    struct lndpi_linked_list* flow_buffer,
+    struct lndpi_packet_flow* flow
+) {
+    switch (lndpi_linked_list_put_new_element(flow_buffer)) {
+        case 1:
+            return LNDPI_FLOW_BUFFER_OVERFLOW;
+        case 2:
+            return LNDPI_OUT_OF_MEMORY;
+    }
+
+    flow_buffer->tail->data.flow = flow;
 
     return LNDPI_OK;
 }
 
-static void lndpi_flow_buffer_shrink(struct lndpi_flow_buffer* buffer)
-{
-    struct lndpi_flow_buffer_element* iter = buffer->end - 1;
+static void lndpi_flow_buffer_erase(
+    struct lndpi_linked_list* list,
+    struct lndpi_linked_list_element* prev_element
+) {
+    if (prev_element == list->tail)
+        return;
 
-    while (!iter->alive)
+    struct lndpi_linked_list_element* erased;
+
+    if (prev_element == NULL)
     {
-        --iter;
-        --buffer->end;
+        if (list->head == list->tail)
+            list->tail = NULL;
+
+        erased = list->head;
+
+        list->head = list->head->next;
+    } else
+    {
+        erased = prev_element->next;
+        prev_element->next = prev_element->next->next;
+
+        if (prev_element->next == list->tail)
+            list->tail = prev_element;
     }
+
+    --list->elements_number;
+
+    lndpi_packet_flow_destroy(erased->data.flow);
+    ndpi_free(erased);
 }
 
-void lndpi_flow_buffer_cleanup(struct lndpi_flow_buffer* buffer, uint64_t timeout_ms)
+void lndpi_flow_buffer_cleanup(struct lndpi_linked_list* flow_buffer, uint64_t timeout_ms)
 {
-    struct lndpi_flow_buffer_element* iter;
+    struct lndpi_linked_list_element* iter, * prev_iter = NULL;
 
-    for (iter = buffer->begin; iter != buffer->end; ++iter)
+    for (iter = flow_buffer->head; iter != NULL; iter = iter->next)
     {
-        if (iter->alive && iter->flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN
-            && iter->flow->buffered_packets_num == 0
-            && lndpi_packet_flow_check_timeout(iter->flow, timeout_ms))
+        if (iter->data.flow->protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN
+            && iter->data.flow->buffered_packets_num == 0
+            && lndpi_packet_flow_check_timeout(iter->data.flow, timeout_ms))
         {
-            lndpi_packet_flow_destroy(iter->flow);
-            iter->alive = 0;
-
-            --buffer->current_flow_number;
+            lndpi_flow_buffer_erase(flow_buffer, prev_iter);
         }
-    }
 
-    lndpi_flow_buffer_shrink(buffer);
+        prev_iter = iter;
+    }
 }
 
 /* */
 
-struct lndpi_packet_buffer* lndpi_packet_buffer_init(uint32_t max_packet_number)
+void lndpi_packet_buffer_clear(struct lndpi_linked_list* buffer)
 {
-    struct lndpi_packet_buffer* res;
-    if ((res = (struct lndpi_packet_buffer*)ndpi_malloc(sizeof(struct lndpi_packet_buffer)))
-            == NULL)
-        return NULL;
+    struct lndpi_linked_list_element* iter, * iter_next = NULL;
 
-    if ((res->begin = (struct lndpi_packet_struct*)ndpi_malloc(
-            sizeof(struct lndpi_packet_struct) * max_packet_number)) == NULL)
+    for (iter = buffer->head; iter != NULL; iter = iter_next)
     {
-        ndpi_free(res);
+        iter_next = iter->next;
 
-        return NULL;
+        ndpi_free(iter->data.packet);
+
+        ndpi_free(iter);
     }
 
-    res->head = res->begin;
-    res->tail = res->begin;
-
-    res->current_packet_number = 0;
-    res->max_packet_number = max_packet_number;
-
-    return res;
-}
-
-void lndpi_packet_buffer_destroy(struct lndpi_packet_buffer* buffer)
-{
-    if (buffer != NULL)
-    {
-        ndpi_free(buffer->begin);
-
-        ndpi_free(buffer);
-    }
-}
-
-struct lndpi_packet_struct* lndpi_packet_buffer_next(
-    struct lndpi_packet_buffer* buffer,
-    struct lndpi_packet_struct* elem
-) {
-    struct lndpi_packet_struct* res = elem + 1;
-
-    if (res != buffer->begin + buffer->max_packet_number)
-        return res;
-
-    return buffer->begin;
+    buffer->head = buffer->tail = NULL;
 }
 
 enum lndpi_error lndpi_packet_buffer_put(
-    struct lndpi_packet_buffer* buffer,
+    struct lndpi_linked_list* buffer,
     struct lndpi_packet_struct* packet
 ) {
-    if (buffer->current_packet_number == buffer->max_packet_number)
+    if (lndpi_linked_list_put_new_element(buffer))
         return LNDPI_PACKET_BUFFER_OVERFLOW;
 
-    memcpy(buffer->tail, packet, sizeof(struct lndpi_packet_struct));
-
-    buffer->tail = lndpi_packet_buffer_next(buffer, buffer->tail);
+    buffer->tail->data.packet = packet;
 
     ++packet->lndpi_flow->buffered_packets_num;
-    ++buffer->current_packet_number;
 
     return LNDPI_OK;
 }
 
-const struct lndpi_packet_struct* lndpi_packet_buffer_get(struct lndpi_packet_buffer* buffer)
+void lndpi_packet_buffer_advance(struct lndpi_linked_list* buffer)
 {
-    if (buffer->head != buffer->tail)
-        return buffer->head;
-
-    return NULL;
-}
-
-void lndpi_packet_buffer_advance(struct lndpi_packet_buffer* buffer)
-{
-    if (buffer->head != buffer->tail)
+    if (buffer->head != NULL)
     {
-        --buffer->head->lndpi_flow->buffered_packets_num;
-        buffer->head = lndpi_packet_buffer_next(buffer, buffer->head);
-        --buffer->current_packet_number;
+        if (buffer->head == buffer->tail)
+            buffer->tail = NULL;
+
+        struct lndpi_linked_list_element* old_head = buffer->head;
+
+        buffer->head = buffer->head->next;
+
+        --buffer->elements_number;
+
+        ++old_head->data.packet->lndpi_flow->buffered_packets_num;
+
+        ndpi_free(old_head->data.packet);
+        ndpi_free(old_head);
     }
 }
