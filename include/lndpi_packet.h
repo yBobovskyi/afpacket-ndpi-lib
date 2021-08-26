@@ -49,8 +49,8 @@ typedef enum lndpi_error (*lndpi_buffers_callback_t)(
 );
 
 /**
- *  Buffers callback function type
- * 
+ *  Finalize callback function type
+ *
  *  @par    ndpi_struct             = pointer to an nDPI detection module struct
  *  @par    flow_buffer             = pointer to a flow buffer linked list
  *  @par    packet_buffer           = pointer to a packet buffer linked list
@@ -93,10 +93,10 @@ void lndpi_set_buffers_callback_function(
 );
 
 /**
- *  Set packet callback function
+ *  Set finalize callback function
  *
  *  @par    buffers_callback    = buffers callback function
- *  @par    parameter           = parameter to pass to buffers_callback
+ *  @par    parameter           = parameter to pass to finalize_callback
  */
 void lndpi_set_finalize_callback_function(
     lndpi_finalize_callback_t finalize_callback,
