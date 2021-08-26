@@ -46,14 +46,13 @@ void lndpi_set_finalize_callback_function(
 );
 
 enum lndpi_error lndpi_packet_lib_init(
-    const char* log_file_path,
     uint32_t max_flow_number,
     uint32_t max_packets_to_process,
     uint32_t packet_buffer_size,
     uint64_t flow_timeout_ms
 );
 
-enum lndpi_error lndpi_finalize_initialization(void);
+enum lndpi_error lndpi_init_log_file_path(char* log_file_path);
 
 enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt);
 

@@ -3,9 +3,10 @@ NAME :=	libndpi-packet
 SRCS :=	src/lndpi_packet_flow.c \
 		src/lndpi_packet_logger.c \
 		src/lndpi_packet_buffers.c \
-		src/lndpi_packet.c 
+		src/lndpi_packet.c \
+		src/lndpi_errors.c
 
-CPPFLAGS +=	-I$(CURDIR)/include
+CPPFLAGS +=	-Iinclude
 
 # This needs to point to the nDPI include directory.
 CPPFLAGS += -I/home/yevhen/nDPI/src/include

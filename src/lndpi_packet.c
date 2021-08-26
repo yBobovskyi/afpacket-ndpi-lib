@@ -212,7 +212,6 @@ static enum lndpi_error lndpi_packet_buffer_log(
 /* */
 
 enum lndpi_error lndpi_packet_lib_init(
-    const char* log_file_path,
     uint32_t max_flow_number,
     uint32_t max_packets_to_process,
     uint32_t packet_buffer_size,
@@ -244,7 +243,7 @@ enum lndpi_error lndpi_packet_lib_init(
     return LNDPI_OK;
 }
 
-enum lndpi_error lndpi_finalize_initialization(void)
+enum lndpi_error lndpi_init_log_file(char* log_file_path)
 {
     enum lndpi_error error;
 
