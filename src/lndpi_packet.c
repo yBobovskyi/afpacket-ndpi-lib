@@ -228,9 +228,6 @@ enum lndpi_error lndpi_packet_lib_init(
     if ((error = lndpi_detection_module_init()) != LNDPI_OK)
         return error;
 
-    if ((error = lndpi_logger_init(log_file_path)) != LNDPI_OK)
-        return error;
-
     lndpi_flow_buffer_init(s_max_flow_number);
 
     lndpi_packet_buffer_init(s_packet_buffer_size);
@@ -247,7 +244,16 @@ enum lndpi_error lndpi_packet_lib_init(
     return LNDPI_OK;
 }
 
+enum lndpi_error lndpi_finalize_initialization(void)
+{
+    enum lndpi_error error;
 
+    if (s_packet_callback == lndpi_log_packet)
+        if ((error = lndpi_logger_init(log_file_path)) != LNDPI_OK)
+            return error;
+
+    return LNDPI_OK;
+}
 
 enum lndpi_error lndpi_packet_lib_finalize(void)
 {
@@ -264,15 +270,15 @@ enum lndpi_error lndpi_packet_lib_finalize(void)
 
 void lndpi_packet_lib_exit(void)
 {
+    if (s_packet_callback == lndpi_log_packet)
+        lndpi_logger_exit();
+
     /* Destroying the detection module */
     ndpi_exit_detection_module(s_ndpi_struct);
 
     lndpi_flow_buffer_clear(&s_flow_buffer);
 
     lndpi_packet_buffer_clear(&s_packet_buffer);
-
-    lndpi_logger_exit();
-
 }
 
 struct l4_header_addr

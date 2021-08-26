@@ -53,6 +53,8 @@ enum lndpi_error lndpi_packet_lib_init(
     uint64_t flow_timeout_ms
 );
 
+enum lndpi_error lndpi_finalize_initialization(void);
+
 enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt);
 
 enum lndpi_error lndpi_packet_lib_finalize(void);
