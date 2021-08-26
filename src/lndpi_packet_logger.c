@@ -3,7 +3,7 @@
 
 #include "lndpi_packet_logger.h"
 
-static FILE* log_file;
+static FILE* log_file = NULL;
 
 enum lndpi_error lndpi_logger_init(const char* log_file_path)
 {
@@ -64,5 +64,6 @@ enum lndpi_error lndpi_log_packet(
 
 void lndpi_logger_exit(void)
 {
-    fclose(log_file);
+    if (log_file != NULL)
+        fclose(log_file);
 }

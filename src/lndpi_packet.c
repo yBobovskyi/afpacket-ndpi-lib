@@ -308,8 +308,7 @@ enum lndpi_error lndpi_packet_lib_finalize(void)
  */
 void lndpi_packet_lib_exit(void)
 {
-    if (s_packet_callback == lndpi_log_packet)
-        lndpi_logger_exit();
+    lndpi_logger_exit();
 
     ndpi_exit_detection_module(s_ndpi_struct);
 
