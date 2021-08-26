@@ -11,35 +11,13 @@ static uint32_t s_max_packets_to_process;
 static uint32_t s_packet_buffer_size;
 static uint64_t s_flow_timeout_ms;
 
-static enum lndpi_error (*s_packet_callback)(
-    struct ndpi_detection_module_struct* ndpi_struct,
-    struct lndpi_packet_struct* packet_struct,
-    uint64_t timeout_ms,
-    uint32_t max_packets_to_process,
-    void* parameter
-);
+static lndpi_packet_callback_t s_packet_callback;
 static void* s_packet_callback_parameter;
 
-static enum lndpi_error (*s_buffers_callback)(
-    struct ndpi_detection_module_struct* ndpi_struct,
-    struct lndpi_linked_list* flow_buffer,
-    struct lndpi_linked_list* packet_buffer,
-    uint64_t timeout_ms,
-    uint32_t max_packets_to_process,
-    uint32_t max_flow_number,
-    void* parameter
-);
+static lndpi_buffers_callback_t s_buffers_callback;
 static void* s_buffers_callback_parameter;
 
-static enum lndpi_error (*s_finalize_callback)(
-    struct ndpi_detection_module_struct* ndpi_struct,
-    struct lndpi_linked_list*,
-    struct lndpi_linked_list*,
-    uint64_t timeout_ms,
-    uint32_t max_packets_to_process,
-    uint32_t max_flow_number,
-    void* parameter
-);
+static lndpi_finalize_callback_t s_finalize_callback;
 static void* s_finalize_callback_parameter;
 
 /**
@@ -84,13 +62,7 @@ static void lndpi_packet_buffer_init(uint32_t packet_buffer_size)
  *  Set packet callback function definition
  */
 void lndpi_set_packet_callback_function(
-    enum lndpi_error (*packet_callback)(
-        struct ndpi_detection_module_struct*,
-        struct lndpi_packet_struct*,
-        uint64_t timeout_ms,
-        uint32_t max_packets_to_process,
-        void*
-    ),
+    lndpi_packet_callback_t packet_callback,
     void* parameter
 ) {
     s_packet_callback = packet_callback;
@@ -102,15 +74,7 @@ void lndpi_set_packet_callback_function(
  *  Set buffers callback function definition
  */
 void lndpi_set_buffers_callback_function(
-    enum lndpi_error (*buffers_callback)(
-        struct ndpi_detection_module_struct* ndpi_struct,
-        struct lndpi_linked_list*,
-        struct lndpi_linked_list*,
-        uint64_t timeout_ms,
-        uint32_t max_packets_to_process,
-        uint32_t max_flow_number,
-        void*
-    ),
+    lndpi_buffers_callback_t buffers_callback,
     void* parameter
 ) {
     s_buffers_callback = buffers_callback;
@@ -122,15 +86,7 @@ void lndpi_set_buffers_callback_function(
  *  Set finalize callback function definition
  */
 void lndpi_set_finalize_callback_function(
-    enum lndpi_error (*finalize_callback)(
-        struct ndpi_detection_module_struct* ndpi_struct,
-        struct lndpi_linked_list* flow_buffer,
-        struct lndpi_linked_list* packet_buffer,
-        uint64_t timeout_ms,
-        uint32_t max_packets_to_process,
-        uint32_t max_flow_number,
-        void* parameter
-    ),
+    lndpi_finalize_callback_t finalize_callback,
     void* parameter
 ) {
     s_finalize_callback = finalize_callback;
