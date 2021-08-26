@@ -13,4 +13,6 @@ enum lndpi_error
     LNDPI_IPV6_NOT_SUPPORTED
 };
 
+char* lndpi_error_to_string(enum lndpi_error error, char* str_buffer);
+
 #endif
