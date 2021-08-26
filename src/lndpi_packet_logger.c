@@ -15,7 +15,10 @@ enum lndpi_error lndpi_logger_init(const char* log_file_path)
 
 enum lndpi_error lndpi_log_packet(
     struct ndpi_detection_module_struct* ndpi_struct,
-    struct lndpi_packet_struct* packet
+    struct lndpi_packet_struct* packet,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    void* parameter
 ) {
     char src_addr[16], dst_addr[16];
     uint16_t src_port, dst_port;

@@ -10,6 +10,37 @@ static uint32_t s_max_packets_to_process;
 static uint32_t s_packet_buffer_size;
 static uint64_t s_flow_timeout_ms;
 
+static enum lndpi_error (*s_packet_callback)(
+    struct ndpi_detection_module_struct* ndpi_struct,
+    struct lndpi_packet_struct* packet_struct,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    void* parameter
+);
+static void* s_packet_callback_parameter;
+
+static enum lndpi_error (*s_buffers_callback)(
+    struct ndpi_detection_module_struct* ndpi_struct,
+    struct lndpi_linked_list* flow_buffer,
+    struct lndpi_linked_list* packet_buffer,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    uint32_t max_flow_number,
+    void* parameter
+);
+static void* s_buffers_callback_parameter;
+
+static enum lndpi_error (*s_finalize_callback)(
+    struct ndpi_detection_module_struct* ndpi_struct,
+    struct lndpi_linked_list*,
+    struct lndpi_linked_list*,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    uint32_t max_flow_number,
+    void* parameter
+);
+static void* s_finalize_callback_parameter;
+
 /* */
 
 static enum lndpi_error lndpi_detection_module_init(void)
@@ -42,6 +73,142 @@ static void lndpi_packet_buffer_init(uint32_t packet_buffer_size)
     s_packet_buffer.max_elements_number = packet_buffer_size;
 }
 
+void lndpi_set_packet_callback_function(
+    enum lndpi_error (*packet_callback)(
+        struct ndpi_detection_module_struct*,
+        struct lndpi_packet_struct*,
+        uint64_t timeout_ms,
+        uint32_t max_packets_to_process,
+        void*
+    ),
+    void* parameter
+) {
+    s_packet_callback = packet_callback;
+
+    s_packet_callback_parameter = parameter;
+}
+
+void lndpi_set_buffers_callback_function(
+    enum lndpi_error (*buffers_callback)(
+        struct ndpi_detection_module_struct* ndpi_struct,
+        struct lndpi_linked_list*,
+        struct lndpi_linked_list*,
+        uint64_t timeout_ms,
+        uint32_t max_packets_to_process,
+        uint32_t max_flow_number,
+        void*
+    ),
+    void* parameter
+) {
+    s_buffers_callback = buffers_callback;
+
+    s_buffers_callback_parameter = parameter;
+}
+
+void lndpi_set_finalize_callback_function(
+    enum lndpi_error (*finalize_callback)(
+        struct ndpi_detection_module_struct* ndpi_struct,
+        struct lndpi_linked_list* flow_buffer,
+        struct lndpi_linked_list* packet_buffer,
+        uint64_t timeout_ms,
+        uint32_t max_packets_to_process,
+        uint32_t max_flow_number,
+        void* parameter
+    ),
+    void* parameter
+) {
+    s_finalize_callback = finalize_callback;
+
+    s_finalize_callback_parameter = parameter;
+}
+
+static enum lndpi_error lndpi_process_buffers(
+    struct ndpi_detection_module_struct* ndpi_struct,
+    struct lndpi_linked_list* flow_buffer,
+    struct lndpi_linked_list* packet_buffer,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    uint32_t max_flow_number,
+    void* parameter
+) {
+    enum lndpi_error error;
+
+    struct lndpi_linked_list_element* iter, * iter_next;
+
+    for (iter = packet_buffer->head; iter != NULL; iter = iter_next)
+    {
+        iter_next = iter->next;
+
+        if (iter->data.packet->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
+        {
+            if (!lndpi_packet_flow_check_timeout(iter->data.packet->lndpi_flow, timeout_ms)
+                && iter->data.packet->lndpi_flow->processed_packets_num <= max_packets_to_process)
+                break;
+
+            iter->data.packet->lndpi_flow->protocol = ndpi_detection_giveup(
+                ndpi_struct,
+                iter->data.packet->lndpi_flow->ndpi_flow,
+                1,
+                &iter->data.packet->lndpi_flow->protocol_was_guessed
+            );
+        } else
+        {
+            if ((error = s_packet_callback(
+                ndpi_struct,
+                iter->data.packet,
+                timeout_ms,
+                max_packets_to_process,
+                s_packet_callback_parameter)
+            ) != LNDPI_OK)
+                return error;
+
+            lndpi_packet_buffer_advance(packet_buffer);
+        }
+    }
+
+    lndpi_flow_buffer_cleanup(flow_buffer, timeout_ms);
+
+    return LNDPI_OK;
+}
+
+static enum lndpi_error lndpi_packet_buffer_log(
+    struct ndpi_detection_module_struct* ndpi_struct,
+    struct lndpi_linked_list* flow_buffer,
+    struct lndpi_linked_list* packet_buffer,
+    uint64_t timeout_ms,
+    uint32_t max_packets_to_process,
+    uint32_t max_flow_number,
+    void* parameter
+)
+{
+    struct lndpi_linked_list_element* iter;
+
+    for (iter = packet_buffer->head; iter != NULL; iter = iter->next)
+    {
+        if (iter->data.packet->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
+        {
+            iter->data.packet->lndpi_flow->protocol = ndpi_detection_giveup(
+                ndpi_struct,
+                iter->data.packet->lndpi_flow->ndpi_flow,
+                1,
+                &iter->data.packet->lndpi_flow->protocol_was_guessed
+            );
+        }
+
+        enum lndpi_error error;
+        if ((error = s_packet_callback(
+            ndpi_struct,
+            iter->data.packet,
+            timeout_ms,
+            max_packets_to_process,
+            s_packet_callback_parameter)
+        ) != LNDPI_OK)
+            return error;
+    }
+
+    return LNDPI_OK;
+}
+
 /* */
 
 enum lndpi_error lndpi_packet_lib_init(
@@ -68,36 +235,31 @@ enum lndpi_error lndpi_packet_lib_init(
 
     lndpi_packet_buffer_init(s_packet_buffer_size);
 
-    return LNDPI_OK;
-}
+    s_buffers_callback = lndpi_process_buffers;
+    s_buffers_callback_parameter = NULL;
 
-static enum lndpi_error lndpi_packet_buffer_log(void)
-{
-    struct lndpi_linked_list_element* iter;
+    s_packet_callback = lndpi_log_packet;
+    s_packet_callback_parameter = NULL;
 
-    for (iter = s_packet_buffer.head; iter != NULL; iter = iter->next)
-    {
-        if (iter->data.packet->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
-        {
-            iter->data.packet->lndpi_flow->protocol = ndpi_detection_giveup(
-                s_ndpi_struct,
-                iter->data.packet->lndpi_flow->ndpi_flow,
-                1,
-                &iter->data.packet->lndpi_flow->protocol_was_guessed
-            );
-        }
-
-        enum lndpi_error error;
-        if ((error = lndpi_log_packet(s_ndpi_struct, iter->data.packet)) != LNDPI_OK)
-            return error;
-    }
+    s_finalize_callback = lndpi_packet_buffer_log;
+    s_finalize_callback_parameter = NULL;
 
     return LNDPI_OK;
 }
+
+
 
 enum lndpi_error lndpi_packet_lib_finalize(void)
 {
-    return lndpi_packet_buffer_log();
+    return s_finalize_callback(
+        s_ndpi_struct,
+        &s_flow_buffer,
+        &s_packet_buffer,
+        s_flow_timeout_ms,
+        s_max_packets_to_process,
+        s_max_flow_number,
+        s_finalize_callback_parameter
+    );
 }
 
 void lndpi_packet_lib_exit(void)
@@ -123,42 +285,6 @@ static uint8_t lndpi_packet_has_l4header(struct ndpi_iphdr* iph)
 {
     return (iph->protocol == IPPROTO_TCP
         || iph->protocol == IPPROTO_UDP);
-}
-
-static enum lndpi_error lndpi_process_buffers(void)
-{
-    enum lndpi_error error;
-
-    struct lndpi_linked_list_element* iter, * iter_next;
-
-    for (iter = s_packet_buffer.head; iter != NULL; iter = iter_next)
-    {
-        iter_next = iter->next;
-
-        if (iter->data.packet->lndpi_flow->protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN)
-        {
-            if (!lndpi_packet_flow_check_timeout(iter->data.packet->lndpi_flow, s_flow_timeout_ms)
-                && iter->data.packet->lndpi_flow->processed_packets_num <= s_max_packets_to_process)
-                break;
-
-            iter->data.packet->lndpi_flow->protocol = ndpi_detection_giveup(
-                s_ndpi_struct,
-                iter->data.packet->lndpi_flow->ndpi_flow,
-                1,
-                &iter->data.packet->lndpi_flow->protocol_was_guessed
-            );
-        } else
-        {
-            if ((error = lndpi_log_packet(s_ndpi_struct, iter->data.packet)) != LNDPI_OK)
-                return error;
-
-            lndpi_packet_buffer_advance(&s_packet_buffer);
-        }
-    }
-
-    lndpi_flow_buffer_cleanup(&s_flow_buffer, s_flow_timeout_ms);
-
-    return LNDPI_OK;
 }
 
 enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
@@ -258,7 +384,15 @@ enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt)
 
     pkt_flow->last_packet_ms = packet->time_ms;
 
-    error = lndpi_process_buffers();
+    error = s_buffers_callback(
+        s_ndpi_struct,
+        &s_flow_buffer,
+        &s_packet_buffer,
+        s_flow_timeout_ms,
+        s_max_packets_to_process,
+        s_max_flow_number,
+        s_buffers_callback_parameter
+    );
 
     return error;
 }
