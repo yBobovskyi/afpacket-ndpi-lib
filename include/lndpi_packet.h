@@ -11,12 +11,12 @@
 /**
  *  Packet callback function type
  *
- *  @par    ndpi_struct             = pointer to an nDPI detection module struct
- *  @par    packet_struct           = pointer to a packet struct
- *  @par    timeout_ms              = timeout in milliseconds for a flow
- *  @par    max_packets_to_process  = max number of packets to process without knowing protocol before give up
- *  @par    parameter               = parameter which can be passed to callback funcion
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @param  ndpi_struct             pointer to an nDPI detection module struct
+ *  @param  packet_struct           pointer to a packet struct
+ *  @param  timeout_ms              timeout in milliseconds for a flow
+ *  @param  max_packets_to_process  max number of packets to process without knowing protocol before give up
+ *  @param  parameter               parameter which can be passed to callback funcion
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 typedef enum lndpi_error (*lndpi_packet_callback_t)(
     struct ndpi_detection_module_struct* ndpi_struct,
@@ -29,14 +29,14 @@ typedef enum lndpi_error (*lndpi_packet_callback_t)(
 /**
  *  Buffers callback function type
  *
- *  @par    ndpi_struct             = pointer to an nDPI detection module struct
- *  @par    flow_buffer             = pointer to a flow buffer linked list
- *  @par    packet_buffer           = pointer to a packet buffer linked list
- *  @par    timeout_ms              = timeout in milliseconds for a flow
- *  @par    max_packets_to_process  = max number of packets to process without knowing protocol before give up
- *  @par    max_flow_number         = max number of flows which can be processed simultaneously
- *  @par    parameter               = parameter which can be passed to callback funcion
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @param  ndpi_struct             pointer to an nDPI detection module struct
+ *  @param  flow_buffer             pointer to a flow buffer linked list
+ *  @param  packet_buffer           pointer to a packet buffer linked list
+ *  @param  timeout_ms              timeout in milliseconds for a flow
+ *  @param  max_packets_to_process  max number of packets to process without knowing protocol before give up
+ *  @param  max_flow_number         max number of flows which can be processed simultaneously
+ *  @param  parameter               parameter which can be passed to callback funcion
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 typedef enum lndpi_error (*lndpi_buffers_callback_t)(
     struct ndpi_detection_module_struct* ndpi_struct,
@@ -51,14 +51,14 @@ typedef enum lndpi_error (*lndpi_buffers_callback_t)(
 /**
  *  Finalize callback function type
  *
- *  @par    ndpi_struct             = pointer to an nDPI detection module struct
- *  @par    flow_buffer             = pointer to a flow buffer linked list
- *  @par    packet_buffer           = pointer to a packet buffer linked list
- *  @par    timeout_ms              = timeout in milliseconds for a flow
- *  @par    max_packets_to_process  = max number of packets to process without knowing protocol before give up
- *  @par    max_flow_number         = max number of flows which can be processed simultaneously
- *  @par    parameter               = parameter which can be passed to callback funcion
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @param  ndpi_struct             pointer to an nDPI detection module struct
+ *  @param  flow_buffer             pointer to a flow buffer linked list
+ *  @param  packet_buffer           pointer to a packet buffer linked list
+ *  @param  timeout_ms              timeout in milliseconds for a flow
+ *  @param  max_packets_to_process  max number of packets to process without knowing protocol before give up
+ *  @param  max_flow_number         max number of flows which can be processed simultaneously
+ *  @param  parameter               parameter which can be passed to callback funcion
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 typedef enum lndpi_error (*lndpi_finalize_callback_t)(
     struct ndpi_detection_module_struct* ndpi_struct,
@@ -73,8 +73,8 @@ typedef enum lndpi_error (*lndpi_finalize_callback_t)(
 /**
  * Set packet callback function
  *
- *  @par    packet_callback     = packet callback function
- *  @par    parameter           = parameter to pass to packet_callback
+ *  @param  packet_callback     packet callback function
+ *  @param  parameter           parameter to pass to packet_callback
  */
 void lndpi_set_packet_callback_function(
     lndpi_packet_callback_t packet_callback,
@@ -84,8 +84,8 @@ void lndpi_set_packet_callback_function(
 /**
  * Set buffers callback function
  *
- *  @par    buffers_callback    = buffers callback function
- *  @par    parameter           = parameter to pass to buffers_callback
+ *  @param  buffers_callback    buffers callback function
+ *  @param  parameter           parameter to pass to buffers_callback
  */
 void lndpi_set_buffers_callback_function(
     lndpi_buffers_callback_t buffers_callback,
@@ -95,8 +95,8 @@ void lndpi_set_buffers_callback_function(
 /**
  *  Set finalize callback function
  *
- *  @par    buffers_callback    = buffers callback function
- *  @par    parameter           = parameter to pass to finalize_callback
+ *  @param  buffers_callback    buffers callback function
+ *  @param  parameter           parameter to pass to finalize_callback
  */
 void lndpi_set_finalize_callback_function(
     lndpi_finalize_callback_t finalize_callback,
@@ -106,10 +106,10 @@ void lndpi_set_finalize_callback_function(
 /**
  *  Initialize library
  *
- *  @par    max_flow_number         = max number of flows to store in a buffer
- *  @par    max_packets_to_process  = number of packets to process before give up
- *  @par    packet_buffer_size      = max number of packet to store in a buffer
- *  @par    flow_timeout_ms         = timeout for flow in milliseconds
+ *  @param  max_flow_number         max number of flows to store in a buffer
+ *  @param  max_packets_to_process  number of packets to process before give up
+ *  @param  packet_buffer_size      max number of packet to store in a buffer
+ *  @param  flow_timeout_ms         timeout for flow in milliseconds
  *  @return LNDPI_OK on a successful run and error code otherwise
  */
 enum lndpi_error lndpi_packet_lib_init(
@@ -123,8 +123,8 @@ enum lndpi_error lndpi_packet_lib_init(
  *  Initialize a log file for the default packet callback function
  *  Do not call if you use a custom one
  *
- *  @par    log_file_path       = path to a log file
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @param  log_file_path       path to a log file
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 enum lndpi_error lndpi_init_log_file_path(char* log_file_path);
 
@@ -132,22 +132,22 @@ enum lndpi_error lndpi_init_log_file_path(char* log_file_path);
  *  Main processing function
  *  Process one packet and update information about the protocol of it's flow
  *
- *  @par    pkt     = pointer to a packet
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @param  pkt     = pointer to a packet
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 enum lndpi_error lndpi_process_packet(const struct tpacket3_hdr* pkt);
 
 /**
  *  Library finalize function
- *  Logs all processed information
- *  Basically calls finalize_callback function
+ *  Log all processed information
+ *  Basically call finalize_callback function
  *
- *  @return LNDPI_OK on a successful run and error code otherwise
+ *  @return LNDPI_OK on a successful run and an error code otherwise
  */
 enum lndpi_error lndpi_packet_lib_finalize(void);
 
 /**
- *  Frees all the resources allocated by the library
+ *  Free all the resources allocated by the library
  */
 void lndpi_packet_lib_exit(void);
 

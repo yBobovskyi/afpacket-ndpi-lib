@@ -1,6 +1,9 @@
 #ifndef LNDPI_ERRORS_H
 #define LNDPI_ERRORS_H
 
+/**
+ *  LNDPI error code
+ */
 enum lndpi_error
 {
     LNDPI_OK,
@@ -16,8 +19,8 @@ enum lndpi_error
 /**
  *  Make a string from an error code
  *  
- *  @par    error       = error code
- *  @par    str_buffer  = string buffer to store result
+ *  @param  error       error code
+ *  @param  str_buffer  string buffer to store result
  *  @return pointer to str_buffer
  */
 char* lndpi_error_to_string(enum lndpi_error error, char* str_buffer);

@@ -37,7 +37,7 @@ struct lndpi_packet_flow
 struct lndpi_packet_struct
 {
     uint64_t time_ms;                       /* Timestamp for arrival */
-    struct lndpi_packet_flow* lndpi_flow;   /* Poiter to packet's flow */
+    struct lndpi_packet_flow* lndpi_flow;   /* Pointer to packet's flow */
     uint16_t length;                        /* Packet length */
     int8_t direction;                       /* Packet's direction regarding flow's formal parameters */
 };
@@ -46,11 +46,11 @@ struct lndpi_packet_struct
  *  Allocate memory and initialize packet flow structure
  *  Allocate memory for state machines
 
- *  @par    src_addr        = formal source IP address
- *  @par    dst_addr        = formal destination IP address
- *  @par    src_port        = formal source port
- *  @par    dst_port        = formal destination port
- *  @par    ip_protocol     = protocol ID from IP header
+ *  @param  src_addr        formal source IP address
+ *  @param  dst_addr        formal destination IP address
+ *  @param  src_port        formal source port
+ *  @param  dst_port        formal destination port
+ *  @param  ip_protocol     protocol ID from IP header
  *  @return pointer to a new allocated structure
  */
 struct lndpi_packet_flow* lndpi_packet_flow_init(
@@ -65,15 +65,15 @@ struct lndpi_packet_flow* lndpi_packet_flow_init(
  *  Free memory allocated for state machines
  *  Free memory allocated for packet flow structure
  *
- *  @par    pkt_flow        = pointer to previously allocated packet flow structure
+ *  @param  pkt_flow        pointer to previously allocated packet flow structure
  */
 void lndpi_packet_flow_destroy(struct lndpi_packet_flow* pkt_flow);
 
 /**
  *  Check if packet flow is timed out
  *
- *  @par    flow        = pointer to packet flow structure
- *  @par    timeout_ms  = timeout duration in milliseconds
+ *  @param  flow        pointer to packet flow structure
+ *  @param  timeout_ms  timeout duration in milliseconds
  *  @return 1 if timed out; 0 otherwise
  */
 uint8_t lndpi_packet_flow_check_timeout(struct lndpi_packet_flow* flow, uint64_t timeout_ms);
@@ -81,11 +81,11 @@ uint8_t lndpi_packet_flow_check_timeout(struct lndpi_packet_flow* flow, uint64_t
 /**
  *  Compare packet flow structure to a given addresses
  *
- *  @par    pkt_flow    = pointer to packet flow structure
- *  @par    src_addr    = source IP address
- *  @par    dst_addr    = destination IP address
- *  @par    src_port    = source port
- *  @par    dst_port    = destination port
+ *  @param  pkt_flow    pointer to packet flow structure
+ *  @param  src_addr    source IP address
+ *  @param  dst_addr    destination IP address
+ *  @param  src_port    source port
+ *  @param  dst_port    destination port
  *  @return 0 if addresses is not from given flow;
  *          1 if addresses match the flow's formal ones;
  *          -1 if addresses are indicated vice versa
