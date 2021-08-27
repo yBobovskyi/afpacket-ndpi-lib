@@ -94,7 +94,7 @@ void lndpi_set_finalize_callback_function(
     s_finalize_callback_parameter = parameter;
 }
 
-/*
+/**
  *  Default buffers callback function
  *  Send to packet callback function all packets from the begining of the packet buffer which:
  *      - have final protocol decision
@@ -152,7 +152,7 @@ static enum lndpi_error lndpi_process_buffers(
     return LNDPI_OK;
 }
 
-/*
+/**
  *  Default finalize callback function
  *  Send all packets from buffer to packet callback function
  */
@@ -194,7 +194,7 @@ static enum lndpi_error lndpi_packet_buffer_log(
     return LNDPI_OK;
 }
 
-/*
+/**
  *  Library initialization function definition
  */
 enum lndpi_error lndpi_packet_lib_init(
