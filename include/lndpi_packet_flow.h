@@ -45,7 +45,7 @@ struct lndpi_packet_struct
 /**
  *  Allocate memory and initialize packet flow structure
  *  Allocate memory for state machines
-
+ *
  *  @param  src_addr        formal source IP address
  *  @param  dst_addr        formal destination IP address
  *  @param  src_port        formal source port

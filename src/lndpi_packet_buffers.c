@@ -186,7 +186,7 @@ void lndpi_packet_buffer_advance(struct lndpi_linked_list* buffer)
 
         --buffer->elements_number;
 
-        ++old_head->data.packet->lndpi_flow->buffered_packets_num;
+        --old_head->data.packet->lndpi_flow->buffered_packets_num;
 
         ndpi_free(old_head->data.packet);
         ndpi_free(old_head);
